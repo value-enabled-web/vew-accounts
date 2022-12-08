@@ -1,0 +1,14 @@
+{
+    "arrowParens": "avoid",
+    "bracketSameLine": true,
+    "singleQuote": true,
+    "trailingComma": "all",
+    "bracketSpacing": true,
+    "semi": false,
+    "importOrderSeparation": true,
+    "importOrder": [
+      "^.*env.*$",
+      "<THIRD_PARTY_MODULES>",
+      "^[.]"
+    ]
+  }
