@@ -23,19 +23,19 @@ const User = sequelize.define('user', {
     type: DataTypes.STRING,
     allowNull: false,
     unique: true,
-    set(value) {
+    set: function (value) {
       this.setDataValue('username', value.toLowerCase())
     },
   },
   password: {
     type: DataTypes.STRING,
-    get() {
+    get: function () {
       return () => this.getDataValue('password')
     },
   },
   salt: {
     type: DataTypes.STRING,
-    get() {
+    get: function () {
       return () => this.getDataValue('salt')
     },
   },
