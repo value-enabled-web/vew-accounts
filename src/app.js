@@ -105,13 +105,15 @@ const authenticated = async (req, res, next) => {
 
   jwt.verify(
     token,
-    process.env.JWT_SECRET,
-    { algorithms: ['HS256'], ignoreExpiration: 'true' },
+    process.env.ACCESS_TOKEN_SECRET,
+    { algorithms: ['HS256'] },
     async (err, payload) => {
       if (err) {
-        return res.status(403).send({
+        res.status(403).send({
           message: 'invalid auth header',
         })
+
+        return
       }
 
       const users = await User.findAll({
@@ -205,51 +207,91 @@ router.post('/v2/users', async (req, res) => {
 })
 
 router.post('/auth', async (req, res) => {
-  if (!req.body.login || !req.body.password) {
-    res.status(400).json({
-      message: 'needs login and password',
-    })
-  }
-
-  try {
-    const users = await User.findAll({
-      where: { username: req.body.login },
-    })
-
-    const user = users instanceof Array ? users[0] : null
-
-    if (user === null) {
-      res.status(403).json({
-        message: 'invalid credentials',
+  if (req.body.login && req.body.password) {
+    // login with username and password
+    try {
+      const users = await User.findAll({
+        where: { username: req.body.login },
       })
 
-      return
-    }
+      const user = users instanceof Array ? users[0] : null
 
-    const passwordIsCorrect = User.passwordMatches(req.body.password, user)
+      if (user === null) {
+        res.status(403).json({
+          message: 'invalid credentials',
+        })
 
-    if (!passwordIsCorrect) {
-      res.status(403).json({
-        message: 'invalid credentials',
+        return
+      }
+
+      const passwordIsCorrect = User.passwordMatches(req.body.password, user)
+
+      if (!passwordIsCorrect) {
+        res.status(403).json({
+          message: 'invalid credentials',
+        })
+
+        return
+      }
+
+      const accessToken = jwt.sign(
+        { username: user.username },
+        process.env.ACCESS_TOKEN_SECRET,
+        { algorithm: 'HS256', expiresIn: '1d' },
+      )
+
+      const refreshToken = jwt.sign(
+        { username: user.username },
+        process.env.REFRESH_TOKEN_SECRET,
+        { algorithm: 'HS256', expiresIn: '7d' },
+      )
+
+      res.status(200).json({
+        access_token: accessToken,
+        refresh_token: refreshToken,
       })
-
-      return
+    } catch (err) {
+      res.status(500).json({
+        message: err.message || 'error during login',
+        err,
+      })
     }
+  } else if (req.body.refresh_token) {
+    // refresh access token
+    jwt.verify(
+      req.body.refresh_token,
+      process.env.REFRESH_TOKEN_SECRET,
+      { algorithms: ['HS256'] },
+      async (err, payload) => {
+        if (err) {
+          res.status(403).send({
+            message: 'invalid refresh token',
+          })
 
-    const token = jwt.sign(
-      { username: user.username },
-      process.env.JWT_SECRET,
-      { algorithm: 'HS256', expiresIn: '7d' },
+          return
+        }
+
+        const accessToken = jwt.sign(
+          { username: payload.username },
+          process.env.ACCESS_TOKEN_SECRET,
+          { algorithm: 'HS256', expiresIn: '1d' },
+        )
+
+        const refreshToken = jwt.sign(
+          { username: payload.username },
+          process.env.REFRESH_TOKEN_SECRET,
+          { algorithm: 'HS256', expiresIn: '7d' },
+        )
+
+        res.status(200).json({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        })
+      },
     )
-
-    res.status(200).json({
-      access_token: token,
-      refresh_token: 'todo',
-    })
-  } catch (err) {
-    res.status(500).json({
-      message: err.message || 'error during login',
-      err,
+  } else {
+    res.status(400).json({
+      message: 'needs login and password or refresh_token',
     })
   }
 })
