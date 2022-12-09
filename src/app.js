@@ -1,5 +1,6 @@
 import './env.js'
 
+import lightningPayReq from 'bolt11'
 import crypto from 'crypto'
 import express from 'express'
 import jwt from 'jsonwebtoken'
@@ -356,8 +357,10 @@ router.post('/v2/invoices', authenticated, async (req, res) => {
     return
   }
 
+  const decodedInvoice = lightningPayReq.decode(lnbitsData.payment_request)
+
   res.status(201).json({
-    expires_at: 'todo',
+    expires_at: decodedInvoice.timeExpireDateString,
     payment_hash: lnbitsData.payment_hash,
     payment_request: lnbitsData.payment_request,
   })
@@ -368,6 +371,19 @@ router.post('/v2/payments/bolt11', authenticated, async (req, res) => {
     res.status(400).json({
       message: 'needs invoice and amount',
     })
+  }
+
+  const decodedInvoice = lightningPayReq.decode(req.body.invoice)
+
+  if (
+    decodedInvoice.satoshis !== 0 &&
+    decodedInvoice.satoshis !== req.body.amount
+  ) {
+    res.status(400).json({
+      message: 'invoice and amount do not match',
+    })
+
+    return
   }
 
   const response = await fetch(
@@ -396,14 +412,15 @@ router.post('/v2/payments/bolt11', authenticated, async (req, res) => {
   }
 
   res.status(200).json({
-    amount: 'todo',
-    description: 'todo',
+    amount: req.body.amount,
+    description: decodedInvoice.tags.find(tag => tag.tagName === 'description')
+      .data,
     description_hash: 'todo',
-    destination: 'todo',
+    destination: decodedInvoice.payeeNodeKey,
     fee: 'todo',
     payment_hash: lnbitsData.payment_hash,
     payment_preimage: 'todo',
-    payment_request: req.body.invoicd,
+    payment_request: req.body.invoice,
   })
 })
 
